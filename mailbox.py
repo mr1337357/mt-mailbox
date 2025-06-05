@@ -105,3 +105,5 @@ ouraddr = hex(us.nodeNum)[2:]
 
 while True:
     time.sleep(60)
+    for mq in messages:
+        mq.clean()

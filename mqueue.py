@@ -1,9 +1,16 @@
+import time
+
+SECONDS_PER_DAY = 86400
+
 class mqueue:
     def __init__(self):
         self.messages = []
         self.index = 0
+        self.index2 = 0
 
     def send(self,src,date,message):
+        if date == 0:
+            date = int(time.time())
         self.messages.append((src,date,message))
 
     def get(self,index=0):
@@ -26,4 +33,14 @@ class mqueue:
             del self.messages[index]
     
     def clean(self,date):
-             pass
+        if len(self.messages) == 0:
+            return
+        now = time.time()
+        past = now - ( 5 * SECONDS_PER_DAY)
+        if self.index2 >= len(self.messages):
+            self.index2 = 0
+
+        message = self.messages[self.index2]
+        if message[1] < past:
+            self.messages.remove(message)
+        self.index += 1
