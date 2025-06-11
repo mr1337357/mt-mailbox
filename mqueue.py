@@ -32,7 +32,7 @@ class mqueue:
         if index < len(self.messages):
             del self.messages[index]
     
-    def clean(self,date):
+    def clean(self):
         if len(self.messages) == 0:
             return
         now = time.time()
@@ -44,3 +44,6 @@ class mqueue:
         if message[1] < past:
             self.messages.remove(message)
         self.index += 1
+
+    def __len__(self):
+        return len(self.messages)

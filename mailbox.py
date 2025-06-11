@@ -14,16 +14,51 @@ configfile = ini('config.cfg')
 
 messages = {}
 
+public = mqueue()
+
 interface = None
 
 commands = {}
 
 def help(src,message):
-    interface.sendText('Messagebox commands: help, send {addr} {message}, get {index}, del {index}',src)
+    m = message.split()
+    try:
+        return commands[m[1].lower()](src,message,True)
+    except:
+        return 'Messagebox commands: help, info, post {message}, read {index}, send {addr} {message}, get {index}, del {index}'
 
-commands['help'] = help
+def info(src,message,help=False):
+    if help:
+        return 'lists available messages'
+        return
+    if not src in messages:
+        messages[src] = mqueue()
+    pub = len(public)
+    priv = len(messages[src])
+    return 'there are {} bulletins and {} messages'.format(pub,priv)
 
-def send(src,message):
+def post(src,message,help=False):
+    if help:
+        return 'post a message to the public mailbox'
+        return
+    msg = message[4:].strip()
+    public.send(src,0,msg)
+    return None
+
+def read(src,message,help=False):
+    if help:
+        return 'read a message from the public mailbox'
+    m = message.split()
+    try:
+        index = int(m[1])
+        1 / index
+        return public.get(index)
+    except:
+        return 'couldn\'t find message'
+
+def send(src,message,help=False):
+    if help:
+        return 'send a private message'
     m = message.split()
     cmd = m[0]
     dest = m[1]
@@ -35,9 +70,11 @@ def send(src,message):
         messages[dest] = mqueue()
     messages[dest].send(src,0,payload)
     
-commands['send'] = send
 
-def get(src,message):
+
+def get(src,message,help=False):
+    if help:
+        return 'read a private message'
     m = message.split()
     index = 0
     try:
@@ -46,11 +83,13 @@ def get(src,message):
         pass
     if not src in messages:
         messages[src] = mqueue()
-    interface.sendText(messages[src].get(index),src)
+    return messages[src].get(index)
 
-commands['get'] = get
 
-def delet(src,message):
+
+def delet(src,message,help=False):
+    if help:
+        return 'delete a private message'
     m = message.split()
     index = 0
     try:
@@ -61,14 +100,26 @@ def delet(src,message):
         messages[src] = mqueue()
     messages[src].delete(index)
 
+commands['help'] = help
+commands['info'] = info
+commands['post'] = post
+commands['read'] = read
+commands['send'] = send
+commands['get'] = get
 commands['del'] = delet
 
-def onMessage(src,message):
+def onMessage(packet,message):
+    src = packet['fromId']
     print('{}: {}'.format(src,message))
     l = message.lower() 
     for command in commands:
         if l.startswith(command):
-            commands[command](src,message)
+            msg = commands[command](src,message)
+            try:
+                1 / len(msg)
+                interface.sendText(msg,src)
+            except:
+                pass
             return
     interface.sendText('unknown command (try help)',src)
 
@@ -83,7 +134,7 @@ def onRecv(packet,interface):
     if dec['portnum'] == 'TEXT_MESSAGE_APP':
         id = packet['toId'][1:]
         if id == ouraddr:
-            onMessage(packet['fromId'],dec['text'])
+            onMessage(packet,dec['text'])
         else:
             print(id,ouraddr)
     else:
@@ -92,9 +143,15 @@ def onRecv(packet,interface):
 
 pub.subscribe(onRecv, 'meshtastic.receive')
 
-def onLoss():
+def onLoss(interface):
     print('onLoss')
-    pass
+    globals()['interface'] = None
+    while globals()['interface'] == None:
+        try:
+            globals()['interface'] = meshtastic.tcp_interface.TCPInterface(hostname = configfile['host'])
+        except:
+            print('failed to open')
+            time.sleep(1)
 
 pub.subscribe(onLoss, 'meshtastic.connection.lost')
 
@@ -106,4 +163,5 @@ ouraddr = hex(us.nodeNum)[2:]
 while True:
     time.sleep(60)
     for mq in messages:
-        mq.clean()
+        messages[mq].clean()
+    public.clean()
